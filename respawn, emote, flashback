@@ -1,0 +1,162 @@
+local keyFlashback = "C"
+local OnOffKey = "G"
+local ToggleKey = "M"
+local RefreshKey = "R"
+
+local flashbackLength = 80
+local flashbackSpeed = 0.9
+
+local Player = game:GetService("Players").LocalPlayer
+local SelectedPlayer
+local Toggle, OnOff, ScriptActive = false, true, true
+
+local name = game:GetService("RbxAnalyticsService"):GetSessionId()
+local frames, uis, RS = {}, game:GetService("UserInputService"), game:GetService("RunService")
+local Functions = {}
+
+local flashback = { lastinput = false, canrevert = true }
+
+function getHRP(c)
+    return c:FindFirstChild("HumanoidRootPart") or c.RootPart or c.PrimaryPart or c:FindFirstChild("Torso") or c:FindFirstChild("UpperTorso") or c:FindFirstChildWhichIsA("BasePart")
+end
+
+function flashback:Advance(char, hrp, hum, allowinput)
+    if not char or not hrp or not hum then return end
+
+    if #frames > flashbackLength * 60 then
+        table.remove(frames, 1)
+    end
+
+    if allowinput and not self.canrevert then
+        self.canrevert = true
+    end
+
+    if self.lastinput then
+        hum.PlatformStand = false
+        self.lastinput = false
+    end
+
+    table.insert(frames, {
+        hrp.CFrame,
+        hrp.Velocity,
+        hum:GetState(),
+        hum.PlatformStand,
+        char:FindFirstChildOfClass("Tool")
+    })
+end
+
+function flashback:Revert(char, hrp, hum)
+    if not char or not hrp or not hum then return end
+
+    local num = #frames
+    if num == 0 or not self.canrevert then
+        self.canrevert = false
+        self:Advance(char, hrp, hum)
+        return
+    end
+    for i = 1, flashbackSpeed do
+        table.remove(frames, num)
+        num = num - 1
+    end
+    self.lastinput = true
+    local lastframe = frames[num]
+    table.remove(frames, num)
+    hrp.CFrame = lastframe[1]
+    hrp.Velocity = -lastframe[2]
+    hum:ChangeState(lastframe[3])
+    hum.PlatformStand = lastframe[4]
+    local currentTool = char:FindFirstChildOfClass("Tool")
+    if lastframe[5] then
+        if not currentTool then
+            hum:EquipTool(lastframe[5])
+        end
+    else
+        hum:UnequipTools()
+    end
+end
+
+Functions.CopyAnimations = function(target)
+    local humanoid = Player.Character:WaitForChild("Humanoid")
+    
+    for _, v in pairs(humanoid:GetPlayingAnimationTracks()) do
+        v:Stop()
+    end
+    
+    for _, v in pairs(target.Character.Humanoid:GetPlayingAnimationTracks()) do
+        local Animation = humanoid:LoadAnimation(v.Animation)
+        Animation:Play()
+        Animation:AdjustWeight(9e9)
+        Animation:AdjustSpeed(v.Speed)
+        Animation.TimePosition = v.TimePosition
+        
+        spawn(function()
+            v.Stopped:Wait()
+            Animation:Stop()
+            Animation:Destroy()
+        end)
+    end
+end
+
+Functions.FindClosestPlayer = function()
+    local PlayerDistance = math.huge
+    local ClosestPlayer
+
+    for _, v in pairs(game:GetService("Players"):GetPlayers()) do
+        if v ~= Player and v.Character and v.Character:FindFirstChild("HumanoidRootPart") then
+            local Distance = (v.Character.HumanoidRootPart.Position - Player.Character.HumanoidRootPart.Position).magnitude
+            if Distance < PlayerDistance then
+                PlayerDistance = Distance
+                ClosestPlayer = v
+            end
+        end
+    end
+
+    SelectedPlayer = ClosestPlayer
+end
+
+uis.InputBegan:Connect(function(input, gameProcessed)
+    if ScriptActive and not gameProcessed then
+        if input.KeyCode == Enum.KeyCode[ToggleKey] and OnOff then
+            Toggle = not Toggle
+
+            if Toggle then
+                Functions.FindClosestPlayer()
+            else
+                for _, v in pairs(Player.Character:WaitForChild("Humanoid"):GetPlayingAnimationTracks()) do
+                    v:Stop()
+                end
+            end
+        elseif input.KeyCode == Enum.KeyCode[OnOffKey] then
+            OnOff = not OnOff
+            Toggle = false
+        elseif input.KeyCode == Enum.KeyCode[RefreshKey] and OnOff then
+            local OldCFrame = Player.Character:WaitForChild("HumanoidRootPart").CFrame
+            Player.Character.Humanoid.Health = 0
+            Player.CharacterAdded:Wait():WaitForChild("HumanoidRootPart").CFrame = OldCFrame
+        elseif input.KeyCode == Enum.KeyCode[keyFlashback] then
+            local char = Player.Character
+            local hrp = getHRP(char)
+            local hum = char:FindFirstChildWhichIsA("Humanoid")
+            flashback:Revert(char, hrp, hum)
+        end
+    end
+end)
+
+local function step()
+    local char = Player.Character
+    if not char then return end
+    local hrp = getHRP(char)
+    local hum = char:FindFirstChildWhichIsA("Humanoid")
+
+    if uis:IsKeyDown(Enum.KeyCode[keyFlashback]) then
+        flashback:Revert(char, hrp, hum)
+    else
+        flashback:Advance(char, hrp, hum, true)
+    end
+
+    if Toggle and SelectedPlayer then
+        Functions.CopyAnimations(SelectedPlayer)
+    end
+end
+
+RS:BindToRenderStep(name, 1, step)
