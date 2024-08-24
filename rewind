@@ -1,0 +1,65 @@
+local key = "C"
+local flashbacklength = 80
+local flashbackspeed = 0.9
+
+local frames = {}
+local uis = game:GetService("UserInputService")
+local LP = game:GetService("Players").LocalPlayer
+local RS = game:GetService("RunService")
+
+local function getchar()
+   return LP.Character or LP.CharacterAdded:Wait()
+end
+
+local function gethrp(c)
+   return c:FindFirstChild("HumanoidRootPart") or c.PrimaryPart
+end
+
+local flashback = {}
+
+function flashback:Advance(char, hrp, hum)
+   if #frames > flashbacklength * 60 then
+       table.remove(frames, 1)
+   end
+
+   table.insert(frames, {
+       hrp.CFrame,
+       hrp.Velocity,
+       hum:GetState(),
+       hum.PlatformStand
+   })
+end
+
+function flashback:Revert(char, hrp, hum)
+   local num = #frames
+   if num == 0 then
+       self:Advance(char, hrp, hum)
+       return
+   end
+
+   for _ = 1, flashbackspeed do
+       table.remove(frames, num)
+       num = num - 1
+   end
+
+   local lastframe = frames[num]
+   table.remove(frames, num)
+   hrp.CFrame = lastframe[1]
+   hrp.Velocity = -lastframe[2]
+   hum:ChangeState(lastframe[3])
+   hum.PlatformStand = lastframe[4]
+end
+
+local function step()
+   local char = getchar()
+   local hrp = gethrp(char)
+   local hum = char:FindFirstChildWhichIsA("Humanoid")
+
+   if uis:IsKeyDown(Enum.KeyCode[key]) then
+       flashback:Revert(char, hrp, hum)
+   else
+       flashback:Advance(char, hrp, hum)
+   end
+end
+
+RS:BindToRenderStep("FlashbackStep", 1, step)
