@@ -1,8 +1,0 @@
--- Define the maximum size for a part in Roblox
-local maxSize = Vector3.new(2048, 2048, 2048)
-
--- Apply the maximum size to the Baseplate in the Workspace
-game.Workspace.Baseplate.Size = maxSize
-
--- Optional: Adjust the position so that the Baseplate stays centered
-game.Workspace.Baseplate.Position = Vector3.new(0, maxSize.Y / 2, 0)
