@@ -2,7 +2,7 @@
 
 -- Keybindings
 local ToggleKey = "M"
-local RefreshKey = Enum.KeyCode.LeftAlt  -- Changed to Left Alt
+local RefreshKey = Enum.KeyCode.RightAlt  -- Changed to Left Alt
 
 -- Player and state variables
 local Player = game:GetService("Players").LocalPlayer
